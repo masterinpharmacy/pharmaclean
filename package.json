@@ -1,0 +1,9 @@
+{
+  "name": "pharmaclean",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PharmaClean — offertepagina met live prijsberekening",
+  "dependencies": {
+    "resend": "^4.0.0"
+  }
+}
