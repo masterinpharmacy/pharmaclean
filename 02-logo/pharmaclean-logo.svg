@@ -1,9 +1,0 @@
-<svg width="256" height="256" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <rect x="1" y="1" width="62" height="62" rx="15" fill="#0F3D3E"/>
-  <rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="#3E9C82" stroke-width="1" opacity="0.4"/>
-  <!-- healthcare cross -->
-  <rect x="27" y="13" width="10" height="38" rx="3" fill="#F5F7F6"/>
-  <rect x="13" y="27" width="38" height="10" rx="3" fill="#F5F7F6"/>
-  <!-- checkmark accent, clean/verified -->
-  <path d="M 34 42 L 41 49 L 56 30" fill="none" stroke="#D9774B" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
