@@ -60,9 +60,12 @@ export default async function handler(req, res) {
       <p style="font-size:18px"><strong>Totaal per maand: &euro;${docData.totaalPerMaand.toFixed(2)}</strong></p>
     `;
 
-    const attachments = [
+    const internalAttachments = [
       { filename: 'offerte-pharmaclean.pdf', content: pdfBuffer.toString('base64') },
       { filename: 'offerte-pharmaclean.xlsx', content: Buffer.from(xlsxBuffer).toString('base64') },
+    ];
+    const customerAttachments = [
+      { filename: 'offerte-pharmaclean.pdf', content: pdfBuffer.toString('base64') },
     ];
 
     await Promise.all([
@@ -80,7 +83,7 @@ export default async function handler(req, res) {
           ${itemsTableHtml}
           <p style="color:#5A6462;font-size:13px">De volledige offerte is als PDF en Excel bijgevoegd.</p>
         `,
-        attachments,
+        attachments: internalAttachments,
       }),
       // bevestiging met de offerte naar de aanvrager zelf
       resend.emails.send({
@@ -90,13 +93,13 @@ export default async function handler(req, res) {
         subject: 'Uw offerte-indicatie van PharmaClean',
         html: `
           <h2>Bedankt voor uw aanvraag${praktijknaam ? ', ' + praktijknaam : ''}</h2>
-          <p>Hierbij ontvangt u de indicatieve offerte die u zojuist heeft berekend op pharmaclean.nl. De volledige offerte is bijgevoegd als PDF en als Excel-bestand.</p>
+          <p>Hierbij ontvangt u de indicatieve offerte die u zojuist heeft berekend op pharmaclean.nl. De volledige offerte is bijgevoegd als PDF.</p>
           ${itemsTableHtml}
           <p style="color:#5A6462;font-size:13px">Dit is een indicatieve prijs exclusief btw. Wij nemen binnen een werkdag contact met u op voor een definitieve offerte na een korte intake op locatie.</p>
           <p>Vragen? Antwoord gerust op deze e-mail, of bel ons op ${telefoon ? telefoon : ''}.</p>
           <p>Met vriendelijke groet,<br>PharmaClean</p>
         `,
-        attachments,
+        attachments: customerAttachments,
       }),
     ]);
 
