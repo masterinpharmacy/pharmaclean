@@ -134,11 +134,18 @@ async function buildXlsx(data) {
   });
 
   sheet.getColumn(1).width = 34;
-  sheet.getColumn(2).width = 12;
+  sheet.getColumn(2).width = 14;
   sheet.getColumn(3).width = 14;
   sheet.getColumn(4).width = 14;
-  sheet.getColumn(5).width = 4;
-  sheet.getColumn(6).width = 20;
+
+  sheet.pageSetup = {
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    orientation: "portrait",
+    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+  };
+  sheet.printArea = "A1:D40";
 
   // logo image, top-left
   const logoId = workbook.addImage({ filename: LOGO_PATH, extension: "png" });
@@ -156,7 +163,7 @@ async function buildXlsx(data) {
   sheet.addRow([]);
 
   sheet.mergeCells("A4:D4");
-  sheet.getCell("A4").value = "Offerte-indicatie";
+  sheet.getCell("A4").value = "Offerte-indicatie (bewerkbaar)";
   sheet.getCell("A4").font = { bold: true, size: 13, color: { argb: "FF0F3D3E" } };
 
   sheet.addRow([`Aanvraagdatum: ${data.datum}`]);
@@ -164,7 +171,7 @@ async function buildXlsx(data) {
   sheet.addRow([`Contact: ${data.email}${data.telefoon ? "  |  " + data.telefoon : ""}`]);
   sheet.addRow([]);
 
-  const headerRow = sheet.addRow(["Onderdeel", "Aantal", "Tarief", "Subtotaal"]);
+  const headerRow = sheet.addRow(["Onderdeel", "Aantal", "Tarief (EUR)", "Subtotaal"]);
   headerRow.eachCell((cell, colNumber) => {
     if (colNumber <= 4) {
       cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -175,7 +182,12 @@ async function buildXlsx(data) {
 
   const firstItemRow = headerRow.number + 1;
   data.items.forEach((it, i) => {
-    const row = sheet.addRow([it.label, it.aantal, it.tarief, it.subtotaal]);
+    const r = firstItemRow + i;
+    const row = sheet.getRow(r);
+    row.getCell(1).value = it.label;
+    row.getCell(2).value = it.aantal;
+    row.getCell(3).value = it.tarief;
+    row.getCell(4).value = { formula: `B${r}*C${r}` };
     row.getCell(3).numFmt = '"EUR "#,##0.00';
     row.getCell(4).numFmt = '"EUR "#,##0.00';
     row.getCell(2).alignment = { horizontal: "right" };
@@ -186,8 +198,9 @@ async function buildXlsx(data) {
         row.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3EFEA" } };
       }
     }
+    row.commit();
   });
-  const lastItemRow = headerRow.number + data.items.length;
+  const lastItemRow = firstItemRow + data.items.length - 1;
 
   for (let r = headerRow.number; r <= lastItemRow; r++) {
     for (let c = 1; c <= 4; c++) {
@@ -198,17 +211,59 @@ async function buildXlsx(data) {
     }
   }
 
+  // editable inputs: aantal and tarief cells get a light "editable" tint so it's clear what to change
+  for (let r = firstItemRow; r <= lastItemRow; r++) {
+    sheet.getCell(`B${r}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFBF3EC" } };
+    sheet.getCell(`C${r}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFBF3EC" } };
+  }
+
   sheet.addRow([]);
-  const beurtRow = sheet.addRow(["Prijs per beurt", "", "", data.perBeurt]);
+
+  const beurtRow = sheet.addRow(["Prijs per beurt", "", "", { formula: `SUM(D${firstItemRow}:D${lastItemRow})` }]);
   beurtRow.getCell(4).numFmt = '"EUR "#,##0.00';
   beurtRow.getCell(4).alignment = { horizontal: "right" };
-  sheet.addRow(["Frequentie", `${data.frequentie} (${data.beurtenPerMaand}/maand)`]);
-  const totalRow = sheet.addRow(["Totaal per maand", "", "", data.totaalPerMaand]);
+  beurtRow.getCell(1).font = { color: { argb: "FF5A6462" } };
+
+  const beurtenRow = sheet.addRow(["Beurten per maand", data.beurtenPerMaand]);
+  beurtenRow.getCell(2).alignment = { horizontal: "right" };
+  beurtenRow.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFBF3EC" } };
+  beurtenRow.getCell(1).font = { color: { argb: "FF5A6462" } };
+
+  const kortingRow = sheet.addRow(["Korting", data.korting]);
+  kortingRow.getCell(2).numFmt = "0%";
+  kortingRow.getCell(2).alignment = { horizontal: "right" };
+  kortingRow.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFBF3EC" } };
+  kortingRow.getCell(1).font = { color: { argb: "FF5A6462" } };
+
+  sheet.addRow(["Frequentie (omschrijving)", data.frequentie]);
+
+  const minRow = sheet.addRow(["Minimumbedrag per maand", 150]);
+  minRow.getCell(2).numFmt = '"EUR "#,##0.00';
+  minRow.getCell(2).alignment = { horizontal: "right" };
+  minRow.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFBF3EC" } };
+  minRow.getCell(1).font = { color: { argb: "FF5A6462" } };
+
+  const totalRow = sheet.addRow([
+    "Totaal per maand",
+    "",
+    "",
+    { formula: `MAX(D${beurtRow.number}*B${beurtenRow.number}*(1-B${kortingRow.number}),B${minRow.number})` },
+  ]);
   totalRow.font = { bold: true, size: 12, color: { argb: "FF0F3D3E" } };
   totalRow.getCell(4).numFmt = '"EUR "#,##0.00';
   totalRow.getCell(4).alignment = { horizontal: "right" };
+  totalRow.getCell(1).border = { top: { style: "thin", color: { argb: "FFD8E2DF" } } };
+  totalRow.getCell(4).border = { top: { style: "thin", color: { argb: "FFD8E2DF" } } };
 
-  const noteRowNum = totalRow.number + 3;
+  const editNoteRow = sheet.addRow([]);
+  sheet.getCell(`A${editNoteRow.number}`).value =
+    "Lichtgeel gemarkeerde cellen (aantal, tarief, beurten per maand, korting) kunt u aanpassen. De subtotalen en het maandtotaal rekenen automatisch mee.";
+  sheet.getCell(`A${editNoteRow.number}`).font = { italic: true, size: 9, color: { argb: "FF5A6462" } };
+  sheet.mergeCells(`A${editNoteRow.number}:D${editNoteRow.number}`);
+  sheet.getRow(editNoteRow.number).height = 28;
+  sheet.getCell(`A${editNoteRow.number}`).alignment = { wrapText: true };
+
+  const noteRowNum = editNoteRow.number + 2;
   sheet.getCell(`A${noteRowNum}`).value =
     "Indicatieve prijs exclusief btw. Definitieve offerte na een korte intake op locatie. Geen verborgen kosten.";
   sheet.getCell(`A${noteRowNum}`).font = { italic: true, size: 9, color: { argb: "FF5A6462" } };

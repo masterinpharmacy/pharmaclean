@@ -10,7 +10,10 @@ en mascotte, en als bijlage meegestuurd naar info@pharmaclean.nl.
 - `api/offerte.js`: Vercel serverless functie die offerteaanvragen ontvangt, de documenten
   laat genereren en de mail met bijlagen verstuurt via Resend
 - `api/quote-docs.js`: bouwt de offerte als PDF (pdfkit) en Excel (exceljs) op basis van de
-  itemlijst die de frontend meestuurt, met logo en mascotte uit `api/assets/`
+  itemlijst die de frontend meestuurt, met logo en mascotte uit `api/assets/`. De Excel bevat
+  echte formules (subtotalen en het maandtotaal rekenen automatisch mee als je een aantal,
+  tarief, frequentie of korting aanpast), zodat het ook bruikbaar is als bewerkbaar rekenblad,
+  niet alleen als export.
 - `package.json`: bevat de dependencies (`resend`, `pdfkit`, `exceljs`)
 
 ## Deployen

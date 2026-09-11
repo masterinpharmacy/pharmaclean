@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { items, perBeurt, frequentie, beurtenPerMaand, totaalPerMaand, email, telefoon, praktijknaam } = req.body || {};
+  const { items, perBeurt, frequentie, beurtenPerMaand, korting, totaalPerMaand, email, telefoon, praktijknaam } = req.body || {};
 
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'Geldig e-mailadres verplicht' });
@@ -29,6 +29,7 @@ export default async function handler(req, res) {
     perBeurt: Number(perBeurt) || 0,
     frequentie: frequentie || '',
     beurtenPerMaand: Number(beurtenPerMaand) || 0,
+    korting: Number(korting) || 0,
     totaalPerMaand: Number(totaalPerMaand) || 0,
   };
 
