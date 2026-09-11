@@ -595,6 +595,38 @@
   };
   const MIN_MONTHLY = 150;
 
+  const ITEM_CONFIG = [
+    { id: 'm2', rateKey: 'm2', label: 'Vloeroppervlak (m2)' },
+    { id: 'wc', rateKey: 'wc', label: 'Toiletten' },
+    { id: 'urinoir', rateKey: 'urinoir', label: 'Urinoirs' },
+    { id: 'wasbak', rateKey: 'wasbak', label: 'Wasbakken' },
+    { id: 'pc', rateKey: 'pc', label: "PC's / toetsenborden" },
+    { id: 'telefoon', rateKey: 'telefoon', label: 'Telefoons' },
+    { id: 'ramen', rateKey: 'raam', label: 'Ramen (binnenzijde)' },
+    { id: 'automaat', rateKey: 'automaat', label: 'Afhaalautomaten' },
+    { id: 'vuilnis', rateKey: 'vuilnis', label: 'Vuilnisbakken' },
+    { id: 'behandelkamer', rateKey: 'behandelkamer', label: 'Behandel-/spreekkamers' },
+    { id: 'deurklinken', rateKey: 'deurklinken', label: 'Deurklinken' },
+    { id: 'pinapparaat', rateKey: 'pinapparaat', label: 'Pinapparaten / betaalterminals' },
+    { id: 'zitplaatsen', rateKey: 'zitplaatsen', label: 'Zitplaatsen wachtruimte' }
+  ];
+
+  function buildItems(){
+    const v = id => parseFloat(document.getElementById(id).value) || 0;
+    const items = [{ label: 'Vast startbedrag per beurt', aantal: 1, tarief: RATES.vast, subtotaal: RATES.vast }];
+    ITEM_CONFIG.forEach(cfg => {
+      const aantal = v(cfg.id);
+      if (aantal > 0) {
+        const tarief = RATES[cfg.rateKey];
+        items.push({ label: cfg.label, aantal, tarief, subtotaal: Math.round(aantal * tarief * 100) / 100 });
+      }
+    });
+    if (keukenOn) {
+      items.push({ label: 'Keuken / pantry', aantal: 1, tarief: RATES.keuken, subtotaal: RATES.keuken });
+    }
+    return items;
+  }
+
   let keukenOn = true;
   let activeFreq = 2;
 
@@ -659,8 +691,6 @@
     const email = document.getElementById('req-email').value.trim();
     const telefoon = document.getElementById('req-telefoon').value.trim();
     const praktijknaam = document.getElementById('req-praktijk').value.trim();
-    const total = document.getElementById('total').textContent;
-    const subInfo = document.getElementById('sub-info').textContent;
     const freqLabel = document.querySelector('.freq-opt.active').textContent.trim();
 
     if (!email || !email.includes('@')) {
@@ -676,6 +706,11 @@
       return;
     }
 
+    const items = buildItems();
+    const perBeurt = items.reduce((sum, it) => sum + it.subtotaal, 0);
+    const freq = FREQ[activeFreq];
+    const totaalPerMaand = Math.round(Math.max(perBeurt * freq.perMonth * (1 - freq.discount), MIN_MONTHLY) * 100) / 100;
+
     statusEl.textContent = 'Versturen…';
     statusEl.className = 'form-status';
 
@@ -684,9 +719,11 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          totaal: total,
-          perBeurt: subInfo,
+          items: items,
+          perBeurt: perBeurt,
           frequentie: freqLabel,
+          beurtenPerMaand: freq.perMonth,
+          totaalPerMaand: totaalPerMaand,
           email: email,
           telefoon: telefoon,
           praktijknaam: praktijknaam

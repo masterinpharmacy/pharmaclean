@@ -2,8 +2,12 @@
   "name": "pharmaclean",
   "version": "1.0.0",
   "private": true,
-  "description": "PharmaClean — offertepagina met live prijsberekening",
+  "type": "module",
+  "description": "PharmaClean, offertepagina met live prijsberekening",
   "dependencies": {
-    "resend": "^4.0.0"
+    "resend": "^4.0.0",
+    "pdfkit": "^0.20.2",
+    "docx": "^9.7.1",
+    "exceljs": "^4.4.0"
   }
 }
