@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { buildPdf, buildDocx, buildXlsx } from './quote-docs.js';
+import { buildPdf, buildXlsx } from './quote-docs.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -33,9 +33,8 @@ export default async function handler(req, res) {
   };
 
   try {
-    const [pdfBuffer, docxBuffer, xlsxBuffer] = await Promise.all([
+    const [pdfBuffer, xlsxBuffer] = await Promise.all([
       buildPdf(docData),
-      buildDocx(docData),
       buildXlsx(docData),
     ]);
 
@@ -67,11 +66,10 @@ export default async function handler(req, res) {
         <p><strong>Prijs per beurt:</strong> &euro;${docData.perBeurt.toFixed(2)}</p>
         <p><strong>Frequentie:</strong> ${frequentie} (${docData.beurtenPerMaand} beurten per maand)</p>
         <p style="font-size:18px"><strong>Totaal per maand: &euro;${docData.totaalPerMaand.toFixed(2)}</strong></p>
-        <p style="color:#5A6462;font-size:13px">De volledige offerte is als PDF, Word en Excel bijgevoegd.</p>
+        <p style="color:#5A6462;font-size:13px">De volledige offerte is als PDF en Excel bijgevoegd.</p>
       `,
       attachments: [
         { filename: 'offerte-pharmaclean.pdf', content: pdfBuffer.toString('base64') },
-        { filename: 'offerte-pharmaclean.docx', content: docxBuffer.toString('base64') },
         { filename: 'offerte-pharmaclean.xlsx', content: Buffer.from(xlsxBuffer).toString('base64') },
       ],
     });
