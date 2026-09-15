@@ -34,11 +34,12 @@ export default async function handler(req, res) {
   const basisPerBeurt = items.reduce((sum, it) => sum + Number(it.subtotaal || 0), 0);
 
   if (isIntern) {
-    const opslag = Math.round(basisPerBeurt * (MARKUP_FACTOR - 1) * 100) / 100;
-    finalItems = [
-      ...items,
-      { label: 'Opslag definitieve offerte (10%)', aantal: 1, tarief: opslag, subtotaal: opslag },
-    ];
+    // opslag onzichtbaar verwerken in elk tarief, geen aparte regel op de offerte
+    finalItems = items.map((it) => {
+      const tarief = Math.round(Number(it.tarief) * MARKUP_FACTOR * 100) / 100;
+      const subtotaal = Math.round(Number(it.aantal) * tarief * 100) / 100;
+      return { ...it, tarief, subtotaal };
+    });
   }
 
   const perBeurt = finalItems.reduce((sum, it) => sum + Number(it.subtotaal || 0), 0);
