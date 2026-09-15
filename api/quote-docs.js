@@ -42,13 +42,13 @@ function buildPdf(data) {
 
     let y = 138;
 
-    doc.fontSize(16).fillColor(TEAL_DEEP).text("Offerte-indicatie", marginX, y);
+    doc.fontSize(16).fillColor(TEAL_DEEP).text(data.isDefinitief ? "Definitieve Offerte" : "Offerte-indicatie", marginX, y);
     y += 26;
     doc.fontSize(10).fillColor(MUTED);
     doc.text(`Aanvraagdatum: ${data.datum}`, marginX, y);
     y += 15;
     if (data.praktijknaam) {
-      doc.text(`Praktijk: ${data.praktijknaam}`, marginX, y);
+      doc.text(`${data.isDefinitief ? "Klant" : "Praktijk"}: ${data.praktijknaam}`, marginX, y);
       y += 15;
     }
     doc.text(`Contact: ${data.email}${data.telefoon ? "  |  " + data.telefoon : ""}`, marginX, y);
@@ -105,7 +105,9 @@ function buildPdf(data) {
     y += boxH + 30;
 
     doc.fontSize(9).fillColor(MUTED).text(
-      "Indicatieve prijs exclusief btw. Definitieve offerte na een korte intake op locatie. Geen verborgen kosten.",
+      data.isDefinitief
+        ? "Prijs exclusief btw. Deze offerte is definitief."
+        : "Indicatieve prijs exclusief btw. Definitieve offerte na een korte intake op locatie. Geen verborgen kosten.",
       marginX, y, { width: contentWidth }
     );
 
@@ -163,11 +165,11 @@ async function buildXlsx(data) {
   sheet.addRow([]);
 
   sheet.mergeCells("A4:D4");
-  sheet.getCell("A4").value = "Offerte-indicatie (bewerkbaar)";
+  sheet.getCell("A4").value = data.isDefinitief ? "Definitieve Offerte (bewerkbaar)" : "Offerte-indicatie (bewerkbaar)";
   sheet.getCell("A4").font = { bold: true, size: 13, color: { argb: "FF0F3D3E" } };
 
   sheet.addRow([`Aanvraagdatum: ${data.datum}`]);
-  if (data.praktijknaam) sheet.addRow([`Praktijk: ${data.praktijknaam}`]);
+  if (data.praktijknaam) sheet.addRow([`${data.isDefinitief ? "Klant" : "Praktijk"}: ${data.praktijknaam}`]);
   sheet.addRow([`Contact: ${data.email}${data.telefoon ? "  |  " + data.telefoon : ""}`]);
   sheet.addRow([]);
 
@@ -264,8 +266,9 @@ async function buildXlsx(data) {
   sheet.getCell(`A${editNoteRow.number}`).alignment = { wrapText: true };
 
   const noteRowNum = editNoteRow.number + 2;
-  sheet.getCell(`A${noteRowNum}`).value =
-    "Indicatieve prijs exclusief btw. Definitieve offerte na een korte intake op locatie. Geen verborgen kosten.";
+  sheet.getCell(`A${noteRowNum}`).value = data.isDefinitief
+    ? "Prijs exclusief btw. Deze offerte is definitief."
+    : "Indicatieve prijs exclusief btw. Definitieve offerte na een korte intake op locatie. Geen verborgen kosten.";
   sheet.getCell(`A${noteRowNum}`).font = { italic: true, size: 9, color: { argb: "FF5A6462" } };
 
   // mascot + tagline as a footer, placed within the printed column range (not off to the side)

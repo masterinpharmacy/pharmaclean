@@ -158,6 +158,7 @@
 
   .freq-section{padding:24px 30px 30px; border-top:2px solid var(--teal-pale); margin-top:10px;}
   .freq-label{font-family:var(--mono); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em; color:#6b7674; margin-bottom:12px;}
+  .freq-label.spaced{margin-top:26px;}
   .freq-options{display:flex; gap:10px; flex-wrap:wrap;}
   .freq-opt{
     font-family:var(--mono); font-size:0.85rem; padding:9px 16px; border:1px solid var(--line);
@@ -184,6 +185,12 @@
   .mini-form input:focus{outline:2px solid var(--teal); outline-offset:1px; background:rgba(255,255,255,0.14);}
   .totals-buttons{display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-end;}
   .form-status{font-family:var(--mono); font-size:0.8rem; min-height:1.2em; text-align:right; max-width:320px;}
+  .intern-hint{
+    display:none; font-family:var(--mono); font-size:0.76rem; color:var(--amber);
+    background:rgba(217,119,75,0.12); border:1px solid rgba(217,119,75,0.4); border-radius:4px;
+    padding:8px 12px; max-width:340px; text-align:right;
+  }
+  .intern-hint.show{display:block;}
   .form-status.ok{color:#9FE0C8;}
   .form-status.error{color:#F0B79A;}
   .btn-amber{
@@ -452,7 +459,20 @@
             <div class="freq-opt" data-freq="1">1× per week</div>
             <div class="freq-opt active" data-freq="2">2× per week</div>
             <div class="freq-opt" data-freq="3">3× per week</div>
+            <div class="freq-opt" data-freq="4">4× per week</div>
             <div class="freq-opt" data-freq="5">Dagelijks (5×)</div>
+          </div>
+
+          <div class="freq-label spaced">06 - Tijdstip</div>
+          <div class="freq-options" id="tijdstip-options">
+            <div class="freq-opt active" data-tijdstip="overdag">Overdag</div>
+            <div class="freq-opt" data-tijdstip="avond">'s Avonds (+8%)</div>
+          </div>
+
+          <div class="freq-label spaced">07 - Schoonmaakmateriaal</div>
+          <div class="freq-options" id="materiaal-options">
+            <div class="freq-opt active" data-materiaal="klant">Eigen materiaal klant</div>
+            <div class="freq-opt" data-materiaal="pharmaclean">PharmaClean materiaal (+€5)</div>
           </div>
         </div>
 
@@ -468,6 +488,7 @@
               <input type="tel" id="req-telefoon" placeholder="telefoonnummer" required>
               <input type="text" id="req-praktijk" placeholder="naam praktijk (optioneel)">
             </div>
+            <div class="intern-hint" id="intern-hint">Intern herkend: dit wordt een definitieve offerte (+10%) voor de klantnaam hierboven.</div>
             <div class="totals-buttons">
               <button class="btn-amber" onclick="vraagAan()">Vraag offerte aan</button>
               <a class="btn-ghost" href="#contact">Liever bellen?</a>
@@ -591,9 +612,12 @@
     1: { perMonth: 4.33, discount: 0 },
     2: { perMonth: 8.66, discount: 0.05 },
     3: { perMonth: 13.0, discount: 0.08 },
+    4: { perMonth: 17.33, discount: 0.11 },
     5: { perMonth: 21.67, discount: 0.15 }
   };
   const MIN_MONTHLY = 150;
+  const AVOND_TOESLAG_PCT = 0.08;
+  const MATERIAAL_TARIEF = 5;
 
   const ITEM_CONFIG = [
     { id: 'm2', rateKey: 'm2', label: 'Vloeroppervlak (m2)' },
@@ -624,11 +648,21 @@
     if (keukenOn) {
       items.push({ label: 'Keuken / pantry', aantal: 1, tarief: RATES.keuken, subtotaal: RATES.keuken });
     }
+    if (materiaalMode === 'pharmaclean') {
+      items.push({ label: 'Schoonmaakmateriaal van PharmaClean', aantal: 1, tarief: MATERIAAL_TARIEF, subtotaal: MATERIAAL_TARIEF });
+    }
+    if (tijdstipMode === 'avond') {
+      const subtotaalTotNu = items.reduce((sum, it) => sum + it.subtotaal, 0);
+      const toeslag = Math.round(subtotaalTotNu * AVOND_TOESLAG_PCT * 100) / 100;
+      items.push({ label: `Avond-toeslag (${Math.round(AVOND_TOESLAG_PCT * 100)}%)`, aantal: 1, tarief: toeslag, subtotaal: toeslag });
+    }
     return items;
   }
 
   let keukenOn = true;
   let activeFreq = 2;
+  let tijdstipMode = 'overdag';
+  let materiaalMode = 'klant';
 
   function step(id, delta){
     const el = document.getElementById(id);
@@ -648,7 +682,25 @@
     const opt = e.target.closest('.freq-opt');
     if (!opt) return;
     activeFreq = parseInt(opt.dataset.freq, 10);
-    document.querySelectorAll('.freq-opt').forEach(o => o.classList.remove('active'));
+    document.querySelectorAll('#freq-options .freq-opt').forEach(o => o.classList.remove('active'));
+    opt.classList.add('active');
+    calc();
+  });
+
+  document.getElementById('tijdstip-options').addEventListener('click', (e) => {
+    const opt = e.target.closest('.freq-opt');
+    if (!opt) return;
+    tijdstipMode = opt.dataset.tijdstip;
+    document.querySelectorAll('#tijdstip-options .freq-opt').forEach(o => o.classList.remove('active'));
+    opt.classList.add('active');
+    calc();
+  });
+
+  document.getElementById('materiaal-options').addEventListener('click', (e) => {
+    const opt = e.target.closest('.freq-opt');
+    if (!opt) return;
+    materiaalMode = opt.dataset.materiaal;
+    document.querySelectorAll('#materiaal-options .freq-opt').forEach(o => o.classList.remove('active'));
     opt.classList.add('active');
     calc();
   });
@@ -658,23 +710,8 @@
   });
 
   function calc(){
-    const v = id => parseFloat(document.getElementById(id).value) || 0;
-    const perBeurt =
-      RATES.vast +
-      v('m2') * RATES.m2 +
-      v('wc') * RATES.wc +
-      v('urinoir') * RATES.urinoir +
-      v('wasbak') * RATES.wasbak +
-      v('pc') * RATES.pc +
-      v('telefoon') * RATES.telefoon +
-      v('ramen') * RATES.raam +
-      v('automaat') * RATES.automaat +
-      v('vuilnis') * RATES.vuilnis +
-      v('behandelkamer') * RATES.behandelkamer +
-      v('deurklinken') * RATES.deurklinken +
-      v('pinapparaat') * RATES.pinapparaat +
-      v('zitplaatsen') * RATES.zitplaatsen +
-      (keukenOn ? RATES.keuken : 0);
+    const items = buildItems();
+    const perBeurt = items.reduce((sum, it) => sum + it.subtotaal, 0);
 
     const freq = FREQ[activeFreq];
     let monthly = perBeurt * freq.perMonth * (1 - freq.discount);
@@ -686,12 +723,32 @@
       ' per beurt · ' + freq.perMonth.toLocaleString('nl-NL', {maximumFractionDigits:1}) + ' beurten/maand';
   }
 
+  const INTERN_EMAIL = 'info@pharmaclean.nl';
+
+  function isInternEmail(){
+    return document.getElementById('req-email').value.trim().toLowerCase() === INTERN_EMAIL;
+  }
+
+  function updateInternHint(){
+    const hint = document.getElementById('intern-hint');
+    const praktijkInput = document.getElementById('req-praktijk');
+    if (isInternEmail()) {
+      hint.classList.add('show');
+      praktijkInput.placeholder = 'klantnaam (verplicht)';
+    } else {
+      hint.classList.remove('show');
+      praktijkInput.placeholder = 'naam praktijk (optioneel)';
+    }
+  }
+  document.getElementById('req-email').addEventListener('input', updateInternHint);
+
   async function vraagAan(){
     const statusEl = document.getElementById('form-status');
     const email = document.getElementById('req-email').value.trim();
     const telefoon = document.getElementById('req-telefoon').value.trim();
     const praktijknaam = document.getElementById('req-praktijk').value.trim();
-    const freqLabel = document.querySelector('.freq-opt.active').textContent.trim();
+    const freqLabel = document.querySelector('#freq-options .freq-opt.active').textContent.trim();
+    const intern = isInternEmail();
 
     if (!email || !email.includes('@')) {
       statusEl.textContent = 'Vul een geldig e-mailadres in.';
@@ -703,6 +760,12 @@
       statusEl.textContent = 'Vul een telefoonnummer in.';
       statusEl.className = 'form-status error';
       document.getElementById('req-telefoon').focus();
+      return;
+    }
+    if (intern && !praktijknaam) {
+      statusEl.textContent = 'Vul de klantnaam in voor een definitieve offerte.';
+      statusEl.className = 'form-status error';
+      document.getElementById('req-praktijk').focus();
       return;
     }
 
@@ -731,7 +794,9 @@
         })
       });
       if (!response.ok) throw new Error('Versturen mislukt');
-      statusEl.textContent = 'Verstuurd: check uw mail voor de offerte. We nemen binnen één werkdag contact op.';
+      statusEl.textContent = intern
+        ? 'Verstuurd: de definitieve offerte staat in uw mail.'
+        : 'Verstuurd: check uw mail voor de offerte. We nemen binnen één werkdag contact op.';
       statusEl.className = 'form-status ok';
     } catch (err) {
       statusEl.textContent = 'Er ging iets mis. Mail ons op info@pharmaclean.nl.';

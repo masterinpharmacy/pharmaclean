@@ -2,13 +2,16 @@ import { Resend } from 'resend';
 import { buildPdf, buildXlsx } from './quote-docs.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const INTERN_EMAIL = 'info@pharmaclean.nl';
+const MARKUP_FACTOR = 1.10;
+const MIN_MONTHLY = 150;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { items, perBeurt, frequentie, beurtenPerMaand, korting, totaalPerMaand, email, telefoon, praktijknaam } = req.body || {};
+  const { items, frequentie, beurtenPerMaand, korting, email, telefoon, praktijknaam } = req.body || {};
 
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'Geldig e-mailadres verplicht' });
@@ -20,17 +23,41 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Geen offertegegevens ontvangen' });
   }
 
+  const isIntern = email.trim().toLowerCase() === INTERN_EMAIL;
+
+  if (isIntern && !praktijknaam) {
+    return res.status(400).json({ error: 'Klantnaam verplicht voor een definitieve offerte' });
+  }
+
+  // basisprijs altijd server-side herberekenen uit de itemlijst, niet blind vertrouwen op de frontend-totalen
+  let finalItems = items;
+  const basisPerBeurt = items.reduce((sum, it) => sum + Number(it.subtotaal || 0), 0);
+
+  if (isIntern) {
+    const opslag = Math.round(basisPerBeurt * (MARKUP_FACTOR - 1) * 100) / 100;
+    finalItems = [
+      ...items,
+      { label: 'Opslag definitieve offerte (10%)', aantal: 1, tarief: opslag, subtotaal: opslag },
+    ];
+  }
+
+  const perBeurt = finalItems.reduce((sum, it) => sum + Number(it.subtotaal || 0), 0);
+  const beurtenPerMaandNum = Number(beurtenPerMaand) || 0;
+  const kortingNum = Number(korting) || 0;
+  const totaalPerMaand = Math.round(Math.max(perBeurt * beurtenPerMaandNum * (1 - kortingNum), MIN_MONTHLY) * 100) / 100;
+
   const docData = {
     datum: new Date().toLocaleDateString('nl-NL'),
     praktijknaam: praktijknaam || '',
     email,
     telefoon,
-    items,
-    perBeurt: Number(perBeurt) || 0,
+    items: finalItems,
+    perBeurt,
     frequentie: frequentie || '',
-    beurtenPerMaand: Number(beurtenPerMaand) || 0,
-    korting: Number(korting) || 0,
-    totaalPerMaand: Number(totaalPerMaand) || 0,
+    beurtenPerMaand: beurtenPerMaandNum,
+    korting: kortingNum,
+    totaalPerMaand,
+    isDefinitief: isIntern,
   };
 
   try {
@@ -39,7 +66,7 @@ export default async function handler(req, res) {
       buildXlsx(docData),
     ]);
 
-    const itemRowsHtml = items
+    const itemRowsHtml = finalItems
       .map(
         (it) =>
           `<tr><td>${it.label}</td><td style="text-align:right">${it.aantal}</td><td style="text-align:right">&euro;${Number(it.tarief).toFixed(2)}</td><td style="text-align:right">&euro;${Number(it.subtotaal).toFixed(2)}</td></tr>`
@@ -55,53 +82,70 @@ export default async function handler(req, res) {
         </thead>
         <tbody>${itemRowsHtml}</tbody>
       </table>
-      <p><strong>Prijs per beurt:</strong> &euro;${docData.perBeurt.toFixed(2)}</p>
-      <p><strong>Frequentie:</strong> ${frequentie} (${docData.beurtenPerMaand} beurten per maand)</p>
-      <p style="font-size:18px"><strong>Totaal per maand: &euro;${docData.totaalPerMaand.toFixed(2)}</strong></p>
+      <p><strong>Prijs per beurt:</strong> &euro;${perBeurt.toFixed(2)}</p>
+      <p><strong>Frequentie:</strong> ${frequentie} (${beurtenPerMaandNum} beurten per maand)</p>
+      <p style="font-size:18px"><strong>Totaal per maand: &euro;${totaalPerMaand.toFixed(2)}</strong></p>
     `;
 
     const internalAttachments = [
-      { filename: 'offerte-pharmaclean.pdf', content: pdfBuffer.toString('base64') },
-      { filename: 'offerte-pharmaclean.xlsx', content: Buffer.from(xlsxBuffer).toString('base64') },
-    ];
-    const customerAttachments = [
-      { filename: 'offerte-pharmaclean.pdf', content: pdfBuffer.toString('base64') },
+      { filename: isIntern ? 'definitieve-offerte-pharmaclean.pdf' : 'offerte-pharmaclean.pdf', content: pdfBuffer.toString('base64') },
+      { filename: isIntern ? 'definitieve-offerte-pharmaclean.xlsx' : 'offerte-pharmaclean.xlsx', content: Buffer.from(xlsxBuffer).toString('base64') },
     ];
 
-    await Promise.all([
-      // interne melding naar PharmaClean
-      resend.emails.send({
+    if (isIntern) {
+      // eigen aanvraag: alleen de zaak zelf ontvangt de definitieve offerte, met PDF en Excel
+      await resend.emails.send({
         from: 'PharmaClean <offerte@pharmaclean.nl>',
-        to: 'info@pharmaclean.nl',
-        reply_to: email,
-        subject: `Nieuwe offerteaanvraag${praktijknaam ? ': ' + praktijknaam : ''}`,
+        to: INTERN_EMAIL,
+        subject: `Definitieve offerte voor ${praktijknaam}`,
         html: `
-          <h2>Nieuwe offerteaanvraag via pharmaclean.nl</h2>
-          <p><strong>Praktijk:</strong> ${praktijknaam || '-'}</p>
-          <p><strong>E-mail aanvrager:</strong> ${email}</p>
-          <p><strong>Telefoonnummer:</strong> ${telefoon}</p>
+          <h2>Definitieve offerte voor ${praktijknaam}</h2>
+          <p style="color:#5A6462;font-size:13px">Basisprijs per beurt: &euro;${basisPerBeurt.toFixed(2)}, inclusief 10% opslag: &euro;${perBeurt.toFixed(2)}.</p>
           ${itemsTableHtml}
           <p style="color:#5A6462;font-size:13px">De volledige offerte is als PDF en Excel bijgevoegd.</p>
         `,
         attachments: internalAttachments,
-      }),
-      // bevestiging met de offerte naar de aanvrager zelf
-      resend.emails.send({
-        from: 'PharmaClean <offerte@pharmaclean.nl>',
-        to: email,
-        reply_to: 'info@pharmaclean.nl',
-        subject: 'Uw offerte-indicatie van PharmaClean',
-        html: `
-          <h2>Bedankt voor uw aanvraag${praktijknaam ? ', ' + praktijknaam : ''}</h2>
-          <p>Hierbij ontvangt u de indicatieve offerte die u zojuist heeft berekend op pharmaclean.nl. De volledige offerte is bijgevoegd als PDF.</p>
-          ${itemsTableHtml}
-          <p style="color:#5A6462;font-size:13px">Dit is een indicatieve prijs exclusief btw. Wij nemen binnen een werkdag contact met u op voor een definitieve offerte na een korte intake op locatie.</p>
-          <p>Vragen? Antwoord gerust op deze e-mail, of bel ons op ${telefoon ? telefoon : ''}.</p>
-          <p>Met vriendelijke groet,<br>PharmaClean</p>
-        `,
-        attachments: customerAttachments,
-      }),
-    ]);
+      });
+    } else {
+      const customerAttachments = [
+        { filename: 'offerte-pharmaclean.pdf', content: pdfBuffer.toString('base64') },
+      ];
+
+      await Promise.all([
+        // interne melding naar PharmaClean
+        resend.emails.send({
+          from: 'PharmaClean <offerte@pharmaclean.nl>',
+          to: INTERN_EMAIL,
+          reply_to: email,
+          subject: `Nieuwe offerteaanvraag${praktijknaam ? ': ' + praktijknaam : ''}`,
+          html: `
+            <h2>Nieuwe offerteaanvraag via pharmaclean.nl</h2>
+            <p><strong>Praktijk:</strong> ${praktijknaam || '-'}</p>
+            <p><strong>E-mail aanvrager:</strong> ${email}</p>
+            <p><strong>Telefoonnummer:</strong> ${telefoon}</p>
+            ${itemsTableHtml}
+            <p style="color:#5A6462;font-size:13px">De volledige offerte is als PDF en Excel bijgevoegd.</p>
+          `,
+          attachments: internalAttachments,
+        }),
+        // bevestiging met de offerte naar de aanvrager zelf
+        resend.emails.send({
+          from: 'PharmaClean <offerte@pharmaclean.nl>',
+          to: email,
+          reply_to: INTERN_EMAIL,
+          subject: 'Uw offerte-indicatie van PharmaClean',
+          html: `
+            <h2>Bedankt voor uw aanvraag${praktijknaam ? ', ' + praktijknaam : ''}</h2>
+            <p>Hierbij ontvangt u de indicatieve offerte die u zojuist heeft berekend op pharmaclean.nl. De volledige offerte is bijgevoegd als PDF.</p>
+            ${itemsTableHtml}
+            <p style="color:#5A6462;font-size:13px">Dit is een indicatieve prijs exclusief btw. Wij nemen binnen een werkdag contact met u op voor een definitieve offerte na een korte intake op locatie.</p>
+            <p>Vragen? Antwoord gerust op deze e-mail, of bel ons op ${telefoon}.</p>
+            <p>Met vriendelijke groet,<br>PharmaClean</p>
+          `,
+          attachments: customerAttachments,
+        }),
+      ]);
+    }
 
     res.status(200).json({ success: true });
   } catch (error) {
