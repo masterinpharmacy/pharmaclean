@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { items, frequentie, beurtenPerMaand, korting, email, telefoon, praktijknaam } = req.body || {};
+  const { items, frequentie, beurtenPerMaand, korting, email, telefoon, praktijknaam, klantEmail, klantTelefoon } = req.body || {};
 
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'Geldig e-mailadres verplicht' });
@@ -27,6 +27,12 @@ export default async function handler(req, res) {
 
   if (isIntern && !praktijknaam) {
     return res.status(400).json({ error: 'Klantnaam verplicht voor een definitieve offerte' });
+  }
+  if (isIntern && (!klantEmail || !klantEmail.includes('@'))) {
+    return res.status(400).json({ error: 'Geldig e-mailadres van de klant verplicht voor een definitieve offerte' });
+  }
+  if (isIntern && !klantTelefoon) {
+    return res.status(400).json({ error: 'Telefoonnummer van de klant verplicht voor een definitieve offerte' });
   }
 
   // basisprijs altijd server-side herberekenen uit de itemlijst, niet blind vertrouwen op de frontend-totalen
@@ -50,8 +56,8 @@ export default async function handler(req, res) {
   const docData = {
     datum: new Date().toLocaleDateString('nl-NL'),
     praktijknaam: praktijknaam || '',
-    email,
-    telefoon,
+    email: isIntern ? klantEmail : email,
+    telefoon: isIntern ? klantTelefoon : telefoon,
     items: finalItems,
     perBeurt,
     frequentie: frequentie || '',
@@ -101,9 +107,11 @@ export default async function handler(req, res) {
         subject: `Definitieve offerte voor ${praktijknaam}`,
         html: `
           <h2>Definitieve offerte voor ${praktijknaam}</h2>
+          <p><strong>Klant e-mail:</strong> ${klantEmail}</p>
+          <p><strong>Klant telefoon:</strong> ${klantTelefoon}</p>
           <p style="color:#5A6462;font-size:13px">Basisprijs per beurt: &euro;${basisPerBeurt.toFixed(2)}, inclusief 10% opslag: &euro;${perBeurt.toFixed(2)}.</p>
           ${itemsTableHtml}
-          <p style="color:#5A6462;font-size:13px">De volledige offerte is als PDF en Excel bijgevoegd.</p>
+          <p style="color:#5A6462;font-size:13px">De volledige offerte is als PDF en Excel bijgevoegd, met de klantgegevens als contactinformatie op het document.</p>
         `,
         attachments: internalAttachments,
       });

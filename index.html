@@ -191,6 +191,8 @@
     padding:8px 12px; max-width:340px; text-align:right;
   }
   .intern-hint.show{display:block;}
+  .intern-fields{display:none;}
+  .intern-fields.show{display:flex;}
   .form-status.ok{color:#9FE0C8;}
   .form-status.error{color:#F0B79A;}
   .btn-amber{
@@ -489,6 +491,10 @@
               <input type="text" id="req-praktijk" placeholder="naam praktijk (optioneel)">
             </div>
             <div class="intern-hint" id="intern-hint">Intern herkend: dit wordt een definitieve offerte (+10%) voor de klantnaam hierboven.</div>
+            <div class="mini-form intern-fields" id="intern-fields">
+              <input type="email" id="req-klant-email" placeholder="e-mailadres klant">
+              <input type="tel" id="req-klant-telefoon" placeholder="telefoonnummer klant">
+            </div>
             <div class="totals-buttons">
               <button class="btn-amber" onclick="vraagAan()">Vraag offerte aan</button>
               <a class="btn-ghost" href="#contact">Liever bellen?</a>
@@ -732,11 +738,14 @@
   function updateInternHint(){
     const hint = document.getElementById('intern-hint');
     const praktijkInput = document.getElementById('req-praktijk');
+    const internFields = document.getElementById('intern-fields');
     if (isInternEmail()) {
       hint.classList.add('show');
+      internFields.classList.add('show');
       praktijkInput.placeholder = 'klantnaam (verplicht)';
     } else {
       hint.classList.remove('show');
+      internFields.classList.remove('show');
       praktijkInput.placeholder = 'naam praktijk (optioneel)';
     }
   }
@@ -747,6 +756,8 @@
     const email = document.getElementById('req-email').value.trim();
     const telefoon = document.getElementById('req-telefoon').value.trim();
     const praktijknaam = document.getElementById('req-praktijk').value.trim();
+    const klantEmail = document.getElementById('req-klant-email').value.trim();
+    const klantTelefoon = document.getElementById('req-klant-telefoon').value.trim();
     const freqLabel = document.querySelector('#freq-options .freq-opt.active').textContent.trim();
     const intern = isInternEmail();
 
@@ -766,6 +777,18 @@
       statusEl.textContent = 'Vul de klantnaam in voor een definitieve offerte.';
       statusEl.className = 'form-status error';
       document.getElementById('req-praktijk').focus();
+      return;
+    }
+    if (intern && (!klantEmail || !klantEmail.includes('@'))) {
+      statusEl.textContent = 'Vul een geldig e-mailadres van de klant in.';
+      statusEl.className = 'form-status error';
+      document.getElementById('req-klant-email').focus();
+      return;
+    }
+    if (intern && !klantTelefoon) {
+      statusEl.textContent = 'Vul het telefoonnummer van de klant in.';
+      statusEl.className = 'form-status error';
+      document.getElementById('req-klant-telefoon').focus();
       return;
     }
 
@@ -790,7 +813,9 @@
           totaalPerMaand: totaalPerMaand,
           email: email,
           telefoon: telefoon,
-          praktijknaam: praktijknaam
+          praktijknaam: praktijknaam,
+          klantEmail: klantEmail,
+          klantTelefoon: klantTelefoon
         })
       });
       if (!response.ok) throw new Error('Versturen mislukt');
