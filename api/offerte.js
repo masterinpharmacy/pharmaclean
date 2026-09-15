@@ -3,7 +3,6 @@ import { buildPdf, buildXlsx } from './quote-docs.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const INTERN_EMAIL = 'info@pharmaclean.nl';
-const MARKUP_FACTOR = 1.10;
 const MIN_MONTHLY = 150;
 
 export default async function handler(req, res) {
@@ -35,20 +34,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Telefoonnummer van de klant verplicht voor een definitieve offerte' });
   }
 
-  // basisprijs altijd server-side herberekenen uit de itemlijst, niet blind vertrouwen op de frontend-totalen
-  let finalItems = items;
-  const basisPerBeurt = items.reduce((sum, it) => sum + Number(it.subtotaal || 0), 0);
-
-  if (isIntern) {
-    // opslag onzichtbaar verwerken in elk tarief, geen aparte regel op de offerte
-    finalItems = items.map((it) => {
-      const tarief = Math.round(Number(it.tarief) * MARKUP_FACTOR * 100) / 100;
-      const subtotaal = Math.round(Number(it.aantal) * tarief * 100) / 100;
-      return { ...it, tarief, subtotaal };
-    });
-  }
-
-  const perBeurt = finalItems.reduce((sum, it) => sum + Number(it.subtotaal || 0), 0);
+  const perBeurt = items.reduce((sum, it) => sum + Number(it.subtotaal || 0), 0);
   const beurtenPerMaandNum = Number(beurtenPerMaand) || 0;
   const kortingNum = Number(korting) || 0;
   const totaalPerMaand = Math.round(Math.max(perBeurt * beurtenPerMaandNum * (1 - kortingNum), MIN_MONTHLY) * 100) / 100;
@@ -58,7 +44,7 @@ export default async function handler(req, res) {
     praktijknaam: praktijknaam || '',
     email: isIntern ? klantEmail : email,
     telefoon: isIntern ? klantTelefoon : telefoon,
-    items: finalItems,
+    items,
     perBeurt,
     frequentie: frequentie || '',
     beurtenPerMaand: beurtenPerMaandNum,
@@ -73,7 +59,7 @@ export default async function handler(req, res) {
       buildXlsx(docData),
     ]);
 
-    const itemRowsHtml = finalItems
+    const itemRowsHtml = items
       .map(
         (it) =>
           `<tr><td>${it.label}</td><td style="text-align:right">${it.aantal}</td><td style="text-align:right">&euro;${Number(it.tarief).toFixed(2)}</td><td style="text-align:right">&euro;${Number(it.subtotaal).toFixed(2)}</td></tr>`
@@ -109,7 +95,6 @@ export default async function handler(req, res) {
           <h2>Definitieve offerte voor ${praktijknaam}</h2>
           <p><strong>Klant e-mail:</strong> ${klantEmail}</p>
           <p><strong>Klant telefoon:</strong> ${klantTelefoon}</p>
-          <p style="color:#5A6462;font-size:13px">Basisprijs per beurt: &euro;${basisPerBeurt.toFixed(2)}, inclusief 10% opslag: &euro;${perBeurt.toFixed(2)}.</p>
           ${itemsTableHtml}
           <p style="color:#5A6462;font-size:13px">De volledige offerte is als PDF en Excel bijgevoegd, met de klantgegevens als contactinformatie op het document.</p>
         `,
